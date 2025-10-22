@@ -3,6 +3,7 @@ const router = express.Router();
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const ctrl = require('../controllers/productsController');
 
+router.get('/all', authMiddleware, ctrl.listAll);
 router.get('/', authMiddleware, ctrl.list);
 router.get('/:id', authMiddleware, ctrl.get);
 router.post('/', authMiddleware, requireRole('admin'), ctrl.create);
