@@ -1,7 +1,8 @@
 const db = require('../db');
 
+// Crear una venta
 // Body: { customerId, items: [{productId, variant, qty, price}], total }
-async function createSale(req, res, next) {
+async function createSale(req, res) {
   const { customerId, items, total } = req.body;
 
   if (!customerId) return res.status(400).json({ error: 'customerId required' });
@@ -32,9 +33,12 @@ async function createSale(req, res, next) {
 
     const saleId = saleRes.rows[0].id;
 
-    // Insertar los items y actualizar stock
+    // Insertar items y actualizar stock
     for (const it of items) {
-      const p = await client.query('SELECT stock FROM inventory WHERE product_id=$1 FOR UPDATE', [it.productId]);
+      const p = await client.query(
+        'SELECT stock FROM inventory WHERE product_id=$1 FOR UPDATE',
+        [it.productId]
+      );
       const stockRow = p.rows[0];
       if (!stockRow) throw new Error('No inventory row for product ' + it.productId);
       if (stockRow.stock < it.qty) throw new Error('Insufficient stock for product ' + it.productId);
@@ -52,57 +56,94 @@ async function createSale(req, res, next) {
     }
 
     await client.query('COMMIT');
-    res.status(201).json({ saleId, total, customerId, items });
+
+    res.status(201).json({
+      id: saleId,
+      total,
+      created_at: saleRes.rows[0].created_at,
+      user_name: req.user.email || null,
+      customer: { id: customerId },
+      items,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
-    next(err);
+    console.error('Error creating sale:', err);
+    res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
 }
 
 // Listar todas las ventas
-async function list(req, res, next) {
+async function list(req, res) {
   try {
     const r = await db.query(`
-      SELECT s.id, s.user_id, u.email AS user_email, 
+      SELECT s.id, s.user_id, u.email AS user_name,
              s.customer_id, c.name AS customer_name, s.total, s.created_at
       FROM sales s
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN customers c ON s.customer_id = c.id
       ORDER BY s.id DESC
     `);
-    res.json(r.rows);
+
+    const sales = r.rows.map(sale => ({
+      id: sale.id,
+      total: sale.total,
+      created_at: sale.created_at,
+      user_name: sale.user_name || null, // email del usuario
+      customer: sale.customer_name
+        ? { id: sale.customer_id, name: sale.customer_name }
+        : null,
+    }));
+
+    res.json(sales);
   } catch (err) {
-    next(err);
+    console.error('Error listing sales:', err);
+    res.status(500).json({ error: 'No se pudieron obtener las ventas' });
   }
 }
 
 // Obtener una venta con cliente e items
-async function get(req, res, next) {
+async function get(req, res) {
   try {
-    const sale = await db.query(`
-      SELECT s.id, s.user_id, u.email AS user_email,
+    const saleRes = await db.query(`
+      SELECT s.id, s.user_id, u.email AS user_name,
              s.customer_id, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
              s.total, s.created_at
       FROM sales s
-      JOIN users u ON s.user_id = u.id
+      LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN customers c ON s.customer_id = c.id
       WHERE s.id = $1
     `, [req.params.id]);
 
-    if (!sale.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const sale = saleRes.rows[0];
+    if (!sale) return res.status(404).json({ error: 'Not found' });
 
-    const items = await db.query(`
+    const itemsRes = await db.query(`
       SELECT si.id, si.product_id, p.name, si.variant, si.qty, si.price
       FROM sale_items si
-      JOIN products p ON si.product_id = p.id
+      LEFT JOIN products p ON si.product_id = p.id
       WHERE si.sale_id = $1
     `, [req.params.id]);
 
-    res.json({ ...sale.rows[0], items: items.rows });
+    res.json({
+      id: sale.id,
+      total: sale.total,
+      created_at: sale.created_at,
+      user_name: sale.user_name || null,
+      customer: sale.customer_name
+        ? {
+            id: sale.customer_id,
+            name: sale.customer_name,
+            email: sale.customer_email,
+            phone: sale.customer_phone,
+          }
+        : null,
+      items: itemsRes.rows,
+    });
   } catch (err) {
-    next(err);
+    console.error('Error getting sale:', err);
+    res.status(500).json({ error: 'No se pudo obtener la venta' });
   }
 }
 
