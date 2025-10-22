@@ -23,10 +23,20 @@ CREATE TABLE IF NOT EXISTS inventory (
   stock INTEGER NOT NULL DEFAULT 0,
   updated_at TIMESTAMP DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(120) UNIQUE NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS sales (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id),
+  customer_id INTEGER REFERENCES customers(id),
   total NUMERIC(12,2) NOT NULL,
   created_at TIMESTAMP DEFAULT now()
 );

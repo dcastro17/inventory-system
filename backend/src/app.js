@@ -7,6 +7,7 @@ const usersRoutes = require('./routes/users');
 const productsRoutes = require('./routes/products');
 const inventoryRoutes = require('./routes/inventory');
 const salesRoutes = require('./routes/sales');
+const customersRoutes = require('./routes/customers');
 
 const app = express();
 app.use(helmet());
@@ -18,6 +19,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/customers', customersRoutes);
 
 // basic error handler
 app.use((err, req, res, next) => {
