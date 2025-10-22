@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: inventory_dev
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backend/migrations:/migrations
+    ports:
+      - '5432:5432'
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/inventory_dev
+      - JWT_SECRET=supersecret_jwt
+      - BCRYPT_SALT_ROUNDS=10
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - '4000:4000'
+
+volumes:
+  db-data:
